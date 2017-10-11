@@ -23,19 +23,27 @@ module Promisables
 
   function Fulfill(p::Promise, value::Any)
     if (typeof(value) == Promise)
-      success = (x) -> Fullfill(p, x);
+      success = (x) -> Fulfill(p, x);
       error = (err) -> Reject(p, err);
       Then(success, error, value);
     else
       p.value = value;
       p.status = Fulfilled();
       put!(p.channel, value);
+      close(p.channel);
     end
+  end
+
+  function Reject(err::Exception)
+    p = Promise();
+    Reject(p, err);
+    return p;
   end
 
   function Reject(p::Promise, err::Exception)
     put!(p.channel, err);
     p.status = Rejected();
+    return p;
   end
 
   T1 = T where T<:Function
@@ -46,6 +54,12 @@ module Promisables
   end
 
   function Then(f::T1, err::T2, p::Promise)::Promise
+    if (typeof(p.status) == Fulfilled())
+      return f(p.value);
+    end
+    if (typeof(p.status) == Rejected())
+      return err(p.value);
+    end
     newChan = Channel{Any}(32) 
     np = Promise(newChan);
     @schedule begin
@@ -53,9 +67,10 @@ module Promisables
       if (typeof(value) <: Exception)
         value = err(value);
         if (typeof(value) == Promise)
-          success = (x) -> Fullfill(np, x);
+          success = (x) -> Fulfill(np, x);
           error = (nerr) -> Reject(np, nerr);
           Then(success, error, value);
+          return;
         end
         Reject(np, value);
         return;

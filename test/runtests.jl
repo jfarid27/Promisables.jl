@@ -25,6 +25,17 @@ module Test
       @test p.value == nothing;
     end
 
+    @testset "when resolved with another promise" begin
+      @testset "should chain promises" begin
+        p1 = Promisables.Promise();
+        p2 = Promisables.Promise();
+        Promisables.Fulfill(p1, p2);
+        @async Promisables.Fulfill(p2, "a successful value");
+        result = take!(p1.channel);
+        @test p1.value ==  p2.value;
+      end
+    end
+
     @testset "after then is called" begin
       @testset "when fullfilled" begin
         @testset "must call the then's next function" begin
@@ -73,7 +84,7 @@ module Test
           @testset "when returning a promise" begin
             @testset "should continue with the promise chain" begin
               chan = Channel{Any}(32);
-              tE = () -> error("failed");
+              tE = () -> error("failed"); # Should throw if called
               p = Promisables.Promise();
               handler = (err) -> Promisables.Resolve("solved");
               p1 = Promisables.Then(tE, handler, p);
@@ -85,8 +96,18 @@ module Test
               @test result == "solved";
             end
           end
-          @testset "when throwing an error" begin
+          @testset "when returning anything else" begin
             @testset "should not continue with the promise chain" begin
+              chan = Channel{Any}(32);
+              tE = () -> error("failed"); # Should throw if called
+              p = Promisables.Promise();
+              handler = (err) -> Promisables.Reject(ErrorException("Blank"));
+              p1 = Promisables.Then(tE, handler, p);
+              givenError = ErrorException("Blank");
+              Promisables.Reject(p, givenError);
+              result = take!(p1.channel);
+              @test typeof(p.status) == Promisables.Rejected;
+              @test typeof(p1.status) == Promisables.Rejected;
             end
           end
         end
