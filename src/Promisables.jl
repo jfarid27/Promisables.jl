@@ -1,7 +1,9 @@
 module Promisables
 
-  export Promise, Then, Pending,
-  Rejected, Fulfilled, Resolve, @pawait;
+  export Promise, Then;
+  export Pending, Rejected, Fulfilled;
+  export Resolve, Fulfill, Reject;
+  export @pawait;
 
   abstract type Status end;
   type Fulfilled <: Status end;
@@ -91,7 +93,7 @@ module Promisables
 
   function Resolve(value)::Promise
     np = Promise();
-    @async Fulfill(np, value);
+    Fulfill(np, value);
     return np;
   end
 end
