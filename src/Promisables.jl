@@ -1,12 +1,22 @@
 module Promisables
 
   export Promise, Then, Pending,
-  Rejected, Fulfilled, Resolve;
+  Rejected, Fulfilled, Resolve, @pawait;
 
   abstract type Status end;
   type Fulfilled <: Status end;
   type Pending <: Status end;
   type Rejected <: Status end;
+
+  macro pawait(body)
+    return quote
+      resultingPromise = $(esc(body));
+      c = Channel{Any}(1)
+      fin = (v) -> put!(c, 1);
+      Then(fin, fin, resultingPromise);
+      take!(c);
+    end
+  end
 
   mutable struct Promise 
     status::Status
@@ -30,7 +40,6 @@ module Promisables
       p.value = value;
       p.status = Fulfilled();
       put!(p.channel, value);
-      close(p.channel);
     end
   end
 

@@ -4,6 +4,29 @@ module Test
     
   using Base.Test
 
+  @testset "await macro" begin
+    @testset "must wait for a promise to resolve" begin
+      p0 = Promisables.Promise();
+      p1 = x -> x + 2;
+      p2 = x -> Promisables.Resolve(x * 2);
+      p3 = x -> begin
+        x ^ 2;
+        return x^2;
+      end
+
+      final = foldl((prev, next) -> Promisables.Then(next, prev), p0, [p1, p2, p3]);
+
+      Timer((t) -> begin
+        Promisables.Fulfill(p0, 0)
+        close(t)
+      end, 2);
+
+      b = Promisables.@pawait final;
+      @test b == 1;
+      @test final.value == 16;
+    end
+  end
+
   @testset "A promise" begin
     @testset "must resolve when fullfilled" begin
       chan = Channel{Any}(32) 
