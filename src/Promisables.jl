@@ -96,4 +96,6 @@ module Promisables
     Fulfill(np, value);
     return np;
   end
+
 end
+
