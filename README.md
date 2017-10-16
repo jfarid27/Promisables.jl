@@ -64,7 +64,7 @@ Also note, you can, like in life, resolve a promise with another promise...
   function Fulfill(p::Promise, value::Promise)
 ```
 
-but ***I advise against this***. This waits for the given ```value```
+but **I advise against this**. This waits for the given ```value```
 promise to resolve, then resolves ```p``` with the given value.
 
 ### Resolve, Reject (on values)
