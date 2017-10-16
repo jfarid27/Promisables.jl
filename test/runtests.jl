@@ -27,6 +27,27 @@ module Test
   end
 
   @testset "A promise" begin
+    @testset "when already resolved and given to a then" begin
+      @testset "must call with the given function" begin
+        p1 = Promise();
+        Fulfill(p1, 2);
+        handler = (value) -> value + 2;
+        p2 = Then(handler, p1);
+        @pawait p2;
+        @test p2.value === 4;
+      end
+    end
+    @testset "when already rejected and given to a then" begin
+      @testset "must call with the given error handler function" begin
+        p1 = Promise();
+        Reject(p1, ErrorException("foo"));
+        handler = (value) -> error("failed"); ## This should not be called
+        errHandler = (err) -> Resolve(2);
+        p2 = Then(handler, errHandler, p1);
+        @pawait p2;
+        @test p2.value === 2;
+      end
+    end
     @testset "must resolve when fullfilled" begin
       chan = Channel{Any}(32) 
       p = Promise(chan);
