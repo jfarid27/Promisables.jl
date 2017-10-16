@@ -28,13 +28,13 @@ Takes a function ```f``` that takes a resolved value, and a promise ```p```. Whe
 is resolved, ```f``` is called with the resolved value. ```Then``` returns a new promise (call this ```afterPromise```).
 to allow for Promise chaining. The resolution value of ```f```'s returned promise is resolved to ```afterPromise```.
 
-#### Rejected promises call err
+##### Rejected promises call err
 If p is rejected, ```err``` is called if it exists, where if it returns  a new promise that is resolved, the value will be resolved to ```afterPromise```.
 This allows for a failure on p to be handled by err. If the promise is not resolved, ```afterPromise``` is rejected.
 
 ### @pawait
 
-#### ```pawait``` macro to block when you really need to 
+##### ```pawait``` macro to block when you really need to 
 
 If one doesn't block on promises, the program will end before the promises are resolved.
 For example, it's quite easy for a scheduler to exit the program before
@@ -82,4 +82,3 @@ values and wrap them in Promises.
 ## Examples
 
 See the [tests](https://github.com/jfarid27/Promisables.jl/blob/master/test/runtests.jl) for a few examples. Along with this, I have added an implementation
-in [Monads](https://github.com/pao/Monads.jl) for users that want clean looking Promise chains.
