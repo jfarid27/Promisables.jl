@@ -37,12 +37,13 @@ module Promisables
     if (typeof(value) == Promise)
       success = (x) -> Fulfill(p, x);
       error = (err) -> Reject(p, err);
-      Then(success, error, value);
+      return Then(success, error, value);
     else
       p.value = value;
       p.status = Fulfilled();
       put!(p.channel, value);
     end
+    return p;
   end
 
   function Reject(err::Exception)
