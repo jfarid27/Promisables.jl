@@ -81,4 +81,4 @@ values and wrap them in Promises.
 
 ## Examples
 
-See the [tests](https://github.com/jfarid27/Promisables.jl/blob/master/test/runtests.jl) for a few examples. Along with this, I have added an implementation
+See the [tests](https://github.com/jfarid27/Promisables.jl/blob/master/test/runtests.jl) for a few examples. Along with this, I have added an implementation in [Monads](https://github.com/pao/Monads.jl) to for a cleaner syntax.
