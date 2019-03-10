@@ -6,17 +6,32 @@ module Promisables
   export @pawait;
 
   abstract type Status end;
-  type Fulfilled <: Status end;
-  type Pending <: Status end;
-  type Rejected <: Status end;
+  struct Fulfilled <: Status end;
+  struct Pending <: Status end;
+  struct Rejected <: Status end;
+  struct PromisableException <: Exception
+    exc::Any
+  end;
 
+  pmsg = "An uncaught Promise message has occurred.";
+
+  """
+  A blocking macro to wrap wait for a given Promise.
+  """
   macro pawait(body)
     return quote
-      resultingPromise = $(esc(body));
-      c = Channel{Any}(1)
-      fin = (v) -> put!(c, 1);
-      Then(fin, fin, resultingPromise);
-      take!(c);
+        resultingPromise = $(esc(body));
+        c = Channel{Any}(1);
+        function fin(v)
+          put!(c, 1); 
+          return v;
+        end
+        err = (x) -> throw(PromisableException(x), pmsg);
+        Then(fin, err, resultingPromise);
+        yield();
+        value = take!(c);
+        close(c);
+        return value;
     end
   end
 
@@ -25,7 +40,7 @@ module Promisables
     channel::Channel{Any}
     value::Any
     Promise() = begin
-      c = Channel{Any}(32)
+      c = Channel{Any}(1)
       new(Pending(), c, nothing)
     end
     Promise(c::Channel{Any}) = begin
@@ -34,16 +49,10 @@ module Promisables
   end;
 
   function Fulfill(p::Promise, value::Any)
-    if (typeof(value) == Promise)
-      success = (x) -> Fulfill(p, x);
-      error = (err) -> Reject(p, err);
-      return Then(success, error, value);
-    else
-      p.value = value;
-      p.status = Fulfilled();
-      put!(p.channel, value);
-    end
-    return p;
+    p.value = value;
+    p.status = Fulfilled();
+    put!(p.channel, value);
+    close(p.channel);
   end
 
   function Reject(err::Exception)
@@ -53,43 +62,9 @@ module Promisables
   end
 
   function Reject(p::Promise, err::Exception)
-    put!(p.channel, err);
     p.status = Rejected();
-    return p;
-  end
-
-  T1 = T where T<:Function
-  T2 = T where T<:Function
-
-  function Then(f::T1, p::Promise)::Promise
-    Then(f, identity, p);
-  end
-
-  function Then(f::T1, err::T2, p::Promise)::Promise
-    if (typeof(p.status) == Fulfilled())
-      return f(p.value);
-    end
-    if (typeof(p.status) == Rejected())
-      return err(p.value);
-    end
-    newChan = Channel{Any}(32) 
-    np = Promise(newChan);
-    @schedule begin
-      value = take!(p.channel);
-      if (typeof(value) <: Exception)
-        value = err(value);
-        if (typeof(value) == Promise)
-          success = (x) -> Fulfill(np, x);
-          error = (nerr) -> Reject(np, nerr);
-          Then(success, error, value);
-          return;
-        end
-        Reject(np, value);
-        return;
-      end
-      Fulfill(np, f(value));
-    end
-    return np;
+    put!(p.channel, err);
+    close(p.channel);
   end
 
   function Resolve(value)::Promise
@@ -98,5 +73,65 @@ module Promisables
     return np;
   end
 
-end
+  T1 = T where T<:Function
+  T2 = T where T<:Function
 
+  function Then(f::T1, p::Promise)::Promise
+    Then(f, (x) -> throw(PromisableException(x), pmsg), p);
+  end
+
+  """
+  Return a new promise computed from f given the resolved p's
+  value.
+
+  The new promise np is returned and a task is scheduled to compute
+  when p has a resolution state using f.
+
+  If p
+     - Eventually is a rejected Promise with value v:
+       Compute err(v)
+         If err(v) is
+           - A good resolution:
+             resolve np with err(v)'s value.
+           - A resolution that throws an Exception:
+             Reject np with the thrown Exception.
+     - Eventually is a resolved Promise with value v:
+       Compute f(v)
+         If f(v) is
+           - A promise:
+             Return np that resolves when f(v) resolves.
+           - A value:
+             Resolve np.
+           - Throws an Exception:
+             Reject np with the thrown Exception.
+  """
+  function Then(f::T1, err::T2, p::Promise)::Promise
+    newChan = Channel{Any}(1) 
+    np = Promise(newChan);
+    runable = @task begin 
+      value = fetch(p.channel);
+      if (typeof(p.status) <: Rejected)
+        try
+          resolution = err(value);
+          return Fullfill(np, resolution);
+        catch resolution_error
+          return Reject(np, resolution_error);
+        end
+      end
+      try
+        resolved = f(value);
+        if (typeof(resolved) <: Promise)
+          success = (x) -> Fulfill(np, x);
+          error = (nerr) -> Reject(np, nerr);
+          return Then(success, error, resolved);
+        end
+        return Fulfill(np, resolved);
+      catch cerr
+        return Reject(np, cerr);
+      end
+    end
+    schedule(runable);
+    yield();
+    return np;
+  end
+end

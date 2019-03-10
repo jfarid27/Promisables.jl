@@ -1,6 +1,5 @@
 module Test
-    
-  using Base.Test;
+  using Test;
   using Promisables;
 
   @testset "await macro" begin
@@ -8,21 +7,20 @@ module Test
       p0 = Promise();
       p1 = x -> x + 2;
       p2 = x -> Resolve(x * 2);
-      p3 = x -> begin
-        x ^ 2;
-        return x^2;
-      end
+      p3 = x -> (x^2);
 
-      final = foldl((prev, next) -> Then(next, prev), p0, [p1, p2, p3]);
+      final = foldl((prev, next) -> Then(next, prev), [p0, p1, p2, p3]);
 
       Timer((t) -> begin
         Fulfill(p0, 0)
         close(t)
       end, 2);
-
+      value = take!(final.channel);
       b = @pawait final;
+     
       @test b == 1;
-      @test final.value == 16;
+      @test take!(final.channel) == 12;
+      @test 3 == 5;
     end
   end
 
@@ -33,6 +31,7 @@ module Test
         Fulfill(p1, 2);
         handler = (value) -> value + 2;
         p2 = Then(handler, p1);
+        @show "started2"
         @pawait p2;
         @test p2.value === 4;
       end
@@ -49,7 +48,7 @@ module Test
       end
     end
     @testset "must resolve when fullfilled" begin
-      chan = Channel{Any}(32) 
+      chan = Channel{Any}(1) 
       p = Promise(chan);
       Fulfill(p, "foo");
       result = take!(chan);
@@ -59,7 +58,7 @@ module Test
     end
 
     @testset "must reject when rejected" begin
-      chan = Channel{Any}(32) 
+      chan = Channel{Any}(1) 
       p = Promise(chan);
       Reject(p, ErrorException("Basic Error"));
       result = take!(chan);
@@ -82,7 +81,7 @@ module Test
     @testset "after then is called" begin
       @testset "when fullfilled" begin
         @testset "must call the then's next function" begin
-          chan = Channel{Any}(32);
+          chan = Channel{Any}(1);
           p = Promise();
           p1 = Then((k) -> put!(chan, k), p);
           Fulfill(p, "foo");
@@ -97,7 +96,7 @@ module Test
 
       @testset "when rejected" begin
         @testset "must call the error handler if one exists with the given error" begin
-          chan = Channel{Any}(32);
+          chan = Channel{Any}(1);
           tE = () -> error("failed");
           errorH = (err) -> put!(chan, err);
           p = Promise();
@@ -111,7 +110,7 @@ module Test
         end
         @testset "if no error handler is present" begin
           @testset "it should not continue" begin
-            chan = Channel{Any}(32);
+            chan = Channel{Any}(1);
             tE = () -> error("failed");
             p = Promise();
             p1 = Then(tE, p);
@@ -126,7 +125,7 @@ module Test
         @testset "error handler" begin
           @testset "when returning a promise" begin
             @testset "should continue with the promise chain" begin
-              chan = Channel{Any}(32);
+              chan = Channel{Any}(1);
               tE = () -> error("failed"); # Should throw if called
               p = Promise();
               handler = (err) -> Resolve("solved");
@@ -141,7 +140,7 @@ module Test
           end
           @testset "when returning anything else" begin
             @testset "should not continue with the promise chain" begin
-              chan = Channel{Any}(32);
+              chan = Channel{Any}(1);
               tE = () -> error("failed"); # Should throw if called
               p = Promise();
               handler = (err) -> Reject(ErrorException("Blank"));
